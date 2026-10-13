@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Analyze Payment{% endblock %}
+{% block section %}NEW ANALYSIS{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="eyebrow"><span class="eyebrow-line"></span> TRANSACTION ANALYSIS <span class="mono">/ 02</span></div><h1>Analyze a payment</h1><p class="lede">Submit transaction signals for a model-generated risk estimate.</p></section>
+<form method="post" class="analysis-layout" novalidate>
+  <div class="analysis-main">
+    <section class="surface form-section">
+      <div class="form-section-head"><span class="section-number">01</span><div><h2>Payment details</h2><p>Identity, value and transaction context</p></div><div class="sample-controls"><span>LOAD EXAMPLE</span><button type="button" data-sample="routine">Routine</button><button type="button" data-sample="elevated">Elevated</button></div></div>
+      <div class="form-grid">
+        <label class="field"><span>Transaction ID <em>REQUIRED</em></span><input name="transaction_id" value="TX-{{ range(100000, 999999)|random }}" required maxlength="48"><small>Must be unique in transaction history.</small></label>
+        <label class="field"><span>Amount <b>USD</b></span><div class="input-prefix"><i>$</i><input type="number" name="amount" min="0.01" step="0.01" value="250.00" required></div></label>
+        <label class="field"><span>Transaction type</span><select name="transaction_type" required>{% for value in options.transaction_type %}<option value="{{ value }}" {% if value == 'TRANSFER' %}selected{% endif %}>{{ value.replace('_', ' ') }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Transaction hour <b>0-23</b></span><input type="number" name="transaction_hour" min="0" max="23" value="14" required></label>
+        <label class="field"><span>Device type</span><select name="device_type" required>{% for value in options.device_type %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></label>
+        <label class="field"><span>Transaction location</span><select name="location" required>{% for value in options.location %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></label>
+      </div>
+    </section>
+    <section class="surface form-section">
+      <div class="form-section-head"><span class="section-number">02</span><div><h2>Balance movement</h2><p>Before and after balances for both accounts</p></div></div>
+      <div class="form-grid">
+        <label class="field"><span>Sender's previous balance <b>USD</b></span><div class="input-prefix"><i>$</i><input type="number" name="sender_previous_balance" min="0" step="0.01" value="4200.00" required></div></label>
+        <label class="field"><span>Sender's new balance <b>USD</b></span><div class="input-prefix"><i>$</i><input type="number" name="sender_new_balance" min="0" step="0.01" value="3950.00" required></div></label>
+        <label class="field"><span>Receiver's previous balance <b>USD</b></span><div class="input-prefix"><i>$</i><input type="number" name="receiver_previous_balance" min="0" step="0.01" value="1800.00" required></div></label>
+        <label class="field"><span>Receiver's new balance <b>USD</b></span><div class="input-prefix"><i>$</i><input type="number" name="receiver_new_balance" min="0" step="0.01" value="2050.00" required></div></label>
+      </div>
+    </section>
+    <section class="surface form-section">
+      <div class="form-section-head"><span class="section-number">03</span><div><h2>Account activity</h2><p>Recent velocity and account tenure</p></div></div>
+      <div class="form-grid form-grid-last">
+        <label class="field"><span>Transactions in last hour</span><input type="number" name="transactions_last_hour" min="0" max="1000" value="1" required></label>
+        <label class="field"><span>Account age <b>DAYS</b></span><input type="number" name="account_age_days" min="0" max="50000" value="740" required></label>
+      </div>
+    </section>
+  </div>
+  <aside class="analysis-aside">
+    <div class="aside-sticky">
+      <section class="aside-callout"><div class="callout-icon"><i data-lucide="shield-check"></i></div><div class="eyebrow">MODEL IN THE LOOP</div><h2>One payment.<br>One risk read.</h2><p>The saved Random Forest evaluates the signals together and returns a 0–100 fraud probability.</p><div class="risk-key"><span><i class="risk-key-dot low"></i>0–24 <b>Low</b></span><span><i class="risk-key-dot medium"></i>25–64 <b>Medium</b></span><span><i class="risk-key-dot high"></i>65–100 <b>High</b></span></div></section>
+      <button class="button-primary submit-button" type="submit"><i data-lucide="scan-search"></i> Analyze transaction</button>
+      <p class="prototype-caption">Educational estimate only. Not a real banking security decision.</p>
+    </div>
+  </aside>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/app.js') }}"></script>{% endblock %}

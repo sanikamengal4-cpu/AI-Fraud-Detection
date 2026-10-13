@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block section %}OVERVIEW{% endblock %}
+{% block content %}
+<section class="page-heading heading-row">
+  <div><div class="eyebrow"><span class="eyebrow-line"></span> MONITORING CONSOLE <span class="mono">/ 01</span></div><h1>Payment overview</h1><p class="lede">A live read on analyzed transactions and model-flagged activity.</p></div>
+  <a class="button-primary" href="{{ url_for('main.analyze') }}"><i data-lucide="plus"></i> Analyze payment</a>
+</section>
+<section class="stat-grid" aria-label="Transaction summary">
+  <article class="stat-panel stat-accent"><div class="stat-top"><span>TRANSACTIONS ANALYZED</span><i data-lucide="activity"></i></div><strong class="stat-value">{{ "{:,}".format(stats.total) }}</strong><div class="stat-foot"><span>All saved predictions</span><span class="stat-index">01</span></div></article>
+  <article class="stat-panel"><div class="stat-top"><span>SUSPICIOUS ACTIVITY</span><i data-lucide="scan-eye"></i></div><strong class="stat-value">{{ "{:,}".format(stats.suspicious) }}</strong><div class="stat-foot"><span>Medium-risk predictions</span><span class="stat-index">02</span></div></article>
+  <article class="stat-panel"><div class="stat-top"><span>FRAUD PREDICTIONS</span><i data-lucide="shield-alert"></i></div><strong class="stat-value risk-text">{{ "{:,}".format(stats.fraud) }}</strong><div class="stat-foot"><span>High-risk predictions</span><span class="stat-index">03</span></div></article>
+  <article class="stat-panel"><div class="stat-top"><span>HIGH-RISK SHARE</span><i data-lucide="chart-no-axes-column-increasing"></i></div><strong class="stat-value">{{ stats.detection_rate }}<small>%</small></strong><div class="stat-foot"><span>High risk / all analyses</span><span class="stat-index">04</span></div></article>
+</section>
+<section class="overview-grid">
+  <article class="surface chart-surface">
+    <div class="panel-heading"><div><div class="eyebrow">PREDICTION MIX</div><h2>Class distribution</h2></div><a class="text-link" href="{{ url_for('main.analytics') }}">Full analytics <i data-lucide="arrow-up-right"></i></a></div>
+    <div class="chart-wrap donut-wrap"><canvas id="classChart" aria-label="Legitimate, suspicious and potentially fraudulent prediction totals"></canvas><div class="donut-center"><strong>{{ stats.total }}</strong><span>ANALYZED</span></div></div>
+    <div class="legend-list"><span><i class="legend-dot legitimate"></i>Legitimate <b>{{ stats.split.get('Legitimate', 0) }}</b></span><span><i class="legend-dot suspicious"></i>Suspicious <b>{{ stats.split.get('Suspicious', 0) }}</b></span><span><i class="legend-dot fraud"></i>Potentially fraudulent <b>{{ stats.split.get('Potentially Fraudulent', 0) }}</b></span></div>
+  </article>
+  <article class="surface chart-surface type-surface">
+    <div class="panel-heading"><div><div class="eyebrow">FLAGGED BY TYPE</div><h2>Payment patterns</h2></div><span class="quiet-label">DATABASE RECORDS</span></div>
+    {% if stats.types %}<div class="chart-wrap type-chart"><canvas id="typeChart" aria-label="Flagged transactions by transaction type"></canvas></div>{% else %}<div class="empty-chart"><i data-lucide="chart-no-axes-combined"></i><p>Type comparisons will appear after the first analysis.</p></div>{% endif %}
+    <div class="chart-footnote">Flagged includes both suspicious and potentially fraudulent predictions.</div>
+  </article>
+</section>
+<section class="surface table-surface">
+  <div class="panel-heading"><div><div class="eyebrow">LATEST ACTIVITY</div><h2>Recent transactions</h2></div><a class="text-link" href="{{ url_for('main.history') }}">View history <i data-lucide="arrow-up-right"></i></a></div>
+  {% if stats.recent %}
+  <div class="table-responsive"><table class="table data-table mb-0"><thead><tr><th>TRANSACTION</th><th>TYPE</th><th>AMOUNT</th><th>PREDICTION</th><th>RISK SCORE</th><th>TIME</th><th></th></tr></thead><tbody>
+  {% for row in stats.recent %}<tr><td><a class="id-link" href="{{ url_for('main.transaction_page', transaction_pk=row.id) }}">{{ row.transaction_id }}</a></td><td>{{ row.transaction_type }}</td><td>${{ "{:,.2f}".format(row.amount) }}</td><td><span class="class-label class-{{ row.risk_level|lower }}"><i></i>{{ row.predicted_class }}</span></td><td><span class="score-inline score-{{ row.risk_level|lower }}">{{ row.risk_score|round|int }}<small>/100</small></span></td><td class="muted-cell">{{ row.created_at }}</td><td><a class="icon-link" aria-label="View transaction" href="{{ url_for('main.transaction_page', transaction_pk=row.id) }}"><i data-lucide="arrow-up-right"></i></a></td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}<div class="empty-state"><span class="empty-icon"><i data-lucide="scan-search"></i></span><div><strong>No transactions analyzed yet</strong><p>Run a sample payment through the model to start building your local activity feed.</p></div><a class="button-secondary" href="{{ url_for('main.analyze') }}">Analyze first payment <i data-lucide="arrow-right"></i></a></div>{% endif %}
+</section>
+<section class="model-strip"><div class="model-strip-icon"><i data-lucide="brain-circuit"></i></div><div><strong>Random Forest · {{ (metrics.roc_auc * 100)|round|int }}% ROC-AUC</strong><p>Evaluation on {{ "{:,}".format(metrics.test_rows) }} held-out synthetic transactions. Metrics update when the model is trained.</p></div><a href="{{ url_for('main.model_info') }}">Inspect evaluation <i data-lucide="arrow-up-right"></i></a></section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const predictionMix = {{ stats.split|tojson }};
+const typeRows = {{ stats.types|tojson }};
+if (window.Chart) {
+  Chart.defaults.font.family = "DM Mono, monospace";
+  Chart.defaults.color = "#78847d";
+  const mixCanvas = document.getElementById("classChart");
+  new Chart(mixCanvas, {type: "doughnut", data: {labels: ["Legitimate", "Suspicious", "Potentially fraudulent"], datasets: [{data: [predictionMix.Legitimate || 0, predictionMix.Suspicious || 0, predictionMix["Potentially Fraudulent"] || 0], backgroundColor: ["#5b8f75", "#e4a34f", "#dc6858"], borderWidth: 0, hoverOffset: 4}]}, options: {cutout: "76%", plugins: {legend: {display: false}, tooltip: {backgroundColor: "#17251e", padding: 12}}, animation: {duration: 650}}});
+  const typeCanvas = document.getElementById("typeChart");
+  if (typeCanvas && typeRows.length) new Chart(typeCanvas, {type: "bar", data: {labels: typeRows.map(row => row.transaction_type), datasets: [{data: typeRows.map(row => row.flagged), backgroundColor: "#e4a34f", borderRadius: 3, maxBarThickness: 30}]}, options: {maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {grid: {display: false}, border: {display: false}}, y: {beginAtZero: true, grid: {color: "#e9eee9"}, border: {display: false}, ticks: {precision: 0}}}}});
+}
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Analytics{% endblock %}
+{% block section %}ANALYTICS{% endblock %}
+{% block content %}
+<section class="page-heading"><div class="eyebrow"><span class="eyebrow-line"></span> DATABASE-DRIVEN <span class="mono">/ 04</span></div><h1>Pattern analytics</h1><p class="lede">Every chart reflects persisted transaction predictions in this workspace.</p></section>
+<section class="analytics-grid">
+  <article class="surface analytics-panel"><div class="panel-heading"><div><div class="eyebrow">OUTCOME MIX</div><h2>Prediction classes</h2></div><span class="quiet-label">SAVED RECORDS</span></div><div class="analytics-chart chart-tall"><canvas id="analyticsClass"></canvas></div></article>
+  <article class="surface analytics-panel"><div class="panel-heading"><div><div class="eyebrow">FLAGGED PAYMENTS</div><h2>By transaction type</h2></div><span class="quiet-label">SUSPICIOUS + HIGH RISK</span></div><div class="analytics-chart chart-tall"><canvas id="analyticsType"></canvas></div></article>
+  <article class="surface analytics-panel analytics-wide"><div class="panel-heading"><div><div class="eyebrow">ACTIVITY OVER TIME</div><h2>Daily transaction trend</h2></div><span class="quiet-label">LOCAL TIMESTAMP</span></div><div class="analytics-chart chart-medium"><canvas id="analyticsTrend"></canvas></div></article>
+  <article class="surface analytics-panel"><div class="panel-heading"><div><div class="eyebrow">TRANSACTION VALUES</div><h2>Amount distribution</h2></div><span class="quiet-label">USD</span></div><div class="analytics-chart chart-tall"><canvas id="analyticsAmount"></canvas></div></article>
+  <article class="surface analytics-panel"><div class="panel-heading"><div><div class="eyebrow">MODEL SCORES</div><h2>Risk score distribution</h2></div><span class="quiet-label">0–100</span></div><div class="analytics-chart chart-tall"><canvas id="analyticsScore"></canvas></div></article>
+  <article class="surface analytics-panel analytics-wide"><div class="panel-heading"><div><div class="eyebrow">HELD-OUT TEST SET</div><h2>Model performance metrics</h2></div><a class="text-link" href="{{ url_for('main.model_info') }}">Evaluation detail <i data-lucide="arrow-up-right"></i></a></div><div class="analytics-chart chart-performance"><canvas id="analyticsMetrics"></canvas></div><div class="metric-caption">{{ metrics.test_rows }} unseen test transactions · Random Forest · class-weighted</div></article>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+const classData = {{ class_data|tojson }};
+const typeData = {{ type_data|tojson }};
+const trendData = {{ trend_data|tojson }};
+const amountData = {{ amount_data|tojson }};
+const scoreData = {{ score_data|tojson }};
+const modelMetrics = {{ metrics|tojson }};
+if (window.Chart) {
+  Chart.defaults.font.family = "DM Mono, monospace"; Chart.defaults.color = "#78847d";
+  const baseOptions = {responsive: true, maintainAspectRatio: false, plugins: {legend: {display: false}}, scales: {x: {grid: {display: false}, border: {display: false}}, y: {beginAtZero: true, grid: {color: "#e9eee9"}, border: {display: false}, ticks: {precision: 0}}}};
+  new Chart(document.getElementById("analyticsClass"), {type: "doughnut", data: {labels: ["Legitimate", "Suspicious", "Potentially fraudulent"], datasets: [{data: [classData.Legitimate || 0, classData.Suspicious || 0, classData["Potentially Fraudulent"] || 0], backgroundColor: ["#5b8f75", "#e4a34f", "#dc6858"], borderWidth: 0}]}, options: {cutout: "66%", plugins: {legend: {position: "bottom", labels: {usePointStyle: true, padding: 18}}}}});
+  new Chart(document.getElementById("analyticsType"), {type: "bar", data: {labels: typeData.map(row => row.transaction_type), datasets: [{label: "Flagged", data: typeData.map(row => row.flagged), backgroundColor: "#e4a34f", borderRadius: 3}, {label: "Total", data: typeData.map(row => row.total), backgroundColor: "#cdd9d0", borderRadius: 3}]}, options: {...baseOptions, plugins: {legend: {display: true, position: "bottom", labels: {usePointStyle: true}}}}});
+  new Chart(document.getElementById("analyticsTrend"), {type: "line", data: {labels: trendData.map(row => row.day), datasets: [{label: "Analyzed", data: trendData.map(row => row.total), borderColor: "#4c7862", backgroundColor: "#4c7862", tension: 0.25}, {label: "Flagged", data: trendData.map(row => row.flagged), borderColor: "#dc6858", backgroundColor: "#dc6858", tension: 0.25}]}, options: {...baseOptions, plugins: {legend: {display: true, position: "bottom", labels: {usePointStyle: true}}}}});
+  const amountBins = Array.from({length: 8}, (_, index) => ({label: `${index * 25}–${(index + 1) * 25}k`, total: 0, flagged: 0}));
+  amountData.forEach(row => {const index = Math.min(7, Math.floor(row.amount / 25000)); amountBins[index].total++; if (row.predicted_class !== "Legitimate") amountBins[index].flagged++;});
+  new Chart(document.getElementById("analyticsAmount"), {type: "bar", data: {labels: amountBins.map(bin => bin.label), datasets: [{label: "Legitimate", data: amountBins.map(bin => bin.total - bin.flagged), backgroundColor: "#5b8f75"}, {label: "Flagged", data: amountBins.map(bin => bin.flagged), backgroundColor: "#dc6858"}]}, options: {...baseOptions, plugins: {legend: {display: true, position: "bottom", labels: {usePointStyle: true}}}}});
+  const scoreBins = Array(10).fill(0); scoreData.forEach(score => scoreBins[Math.min(9, Math.floor(score / 10))]++);
+  new Chart(document.getElementById("analyticsScore"), {type: "bar", data: {labels: scoreBins.map((_, index) => `${index * 10}–${index * 10 + 9}`), datasets: [{data: scoreBins, backgroundColor: "#e4a34f", borderRadius: 2}]}, options: baseOptions});
+  new Chart(document.getElementById("analyticsMetrics"), {type: "bar", data: {labels: ["Precision", "Recall", "F1 score", "ROC-AUC"], datasets: [{data: [modelMetrics.precision, modelMetrics.recall, modelMetrics.f1, modelMetrics.roc_auc], backgroundColor: ["#4c7862", "#e4a34f", "#dc6858", "#6284a0"], borderRadius: 3, maxBarThickness: 46}]}, options: {...baseOptions, scales: {...baseOptions.scales, y: {...baseOptions.scales.y, max: 1, ticks: {callback: value => `${Math.round(value * 100)}%`}}}}});
+}
+</script>
+{% endblock %}
